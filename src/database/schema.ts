@@ -82,7 +82,6 @@ export interface GuestContact {
   id: string
   name: string
   email: string
-  roomNumber: string
   countryCode: string
   phoneNumber: string
   normalizedPhoneNumber: string
@@ -126,6 +125,8 @@ export interface AppSettings {
   adminVerifier: string | null
   failedLoginCount: number
   lockedUntil: number | null
+  lastContactsCsv: string | null
+  lastContactsCsvDate: string | null
 }
 
 export interface DiagnosticRecord {

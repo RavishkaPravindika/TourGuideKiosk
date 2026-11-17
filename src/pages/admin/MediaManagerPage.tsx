@@ -149,7 +149,11 @@ export function MediaManagerPage() {
           </select>
         </label>
         <label className={styles.field}>{t('importMedia')}
-          <input className={styles.input} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,audio/*" onChange={(event) => void importFile(event)} />
+          <div className={styles.stack}>
+            <input className={styles.input} type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,audio/*" onChange={(event) => void importFile(event)} />
+            <input className={styles.input} type="file" accept="image/*" capture="environment" onChange={(event) => void importFile(event)} />
+            <p className={styles.muted}>{t('cameraCaptureHint')}</p>
+          </div>
         </label>
       </section>
       {error ? <p className={styles.error} role="alert">{error}</p> : null}

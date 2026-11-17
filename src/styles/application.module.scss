@@ -385,6 +385,110 @@
   flex: none;
 }
 
+.spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.qrWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.qrWrapper img {
+  background: white;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.phoneRow {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+@media (max-width: 480px) {
+  .phoneRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .phoneRow .field {
+    flex: none !important;
+    min-width: auto !important;
+  }
+}
+
+.consentNote {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Tablet optimizations for Redmi Pad 2 Pro (12.1", 2560x1600) */
+@media (min-width: 1024px) and (max-width: 1600px) and (min-height: 800px) {
+  .content {
+    width: min(100% - 2rem, 1400px);
+  }
+
+  .hero {
+    min-height: min(75vh, 700px);
+  }
+
+  .title {
+    font-size: clamp(2.8rem, 5vw, 5.5rem);
+  }
+
+  .cardImage {
+    aspect-ratio: 4 / 3;
+  }
+
+  .placeholderImage {
+    aspect-ratio: 4 / 3;
+  }
+
+  .modal {
+    width: min(100%, 720px);
+  }
+}
+
+/* Fullscreen kiosk mode - hide browser chrome when in standalone */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .topbar {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+  }
+
+  .guestShell,
+  .adminLayout,
+  .app {
+    min-height: 100dvh;
+    min-height: 100vh;
+  }
+
+  /* Prevent overscroll bounce on iOS/Android */
+  html, body {
+    overscroll-behavior: none;
+  }
+}
+
+/* High DPI displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .cardImage {
+    image-rendering: -webkit-optimize-contrast;
+  }
+}
+
 @media (max-width: 760px) {
   .topbar {
     align-items: start;

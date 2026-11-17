@@ -1,0 +1,20 @@
+{
+  "name": "Explore Sri Lanka",
+  "short_name": "Explore SL",
+  "description": "Offline multilingual tour guide for Explore Sri Lanka",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape-primary",
+  "background_color": "#f7f5ec",
+  "theme_color": "#174A35",
+  "icons": [
+    {
+      "src": "./Adventurous-Boy_RemoveBackground.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["travel", "education"],
+  "prefer_related_applications": false
+}

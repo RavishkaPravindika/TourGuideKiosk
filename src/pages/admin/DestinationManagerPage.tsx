@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type ChangeEvent } from 'react'
 import { getDatabase } from '@/database/db'
 import { LANGUAGES, type ContentTranslation, type Destination, type Language } from '@/database/schema'
 import { useAppData } from '@/contexts/AppDataContext'
@@ -77,6 +77,168 @@ export function DestinationManagerPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [preview, setPreview] = useState(false)
+  const [quickAdd, setQuickAdd] = useState(false)
+  // Simplified quick add form state
+  const [quickForm, setQuickForm] = useState<{
+    name: string
+    areaId: string
+    categoryIds: string[]
+    shortDescription: string
+    description: string
+    historicalBackground: string
+    imageFile: File | null
+  } | null>(null)
+
+  type QuickFormState = NonNullable<typeof quickForm>
+
+  // JSON Import state
+  const [importError, setImportError] = useState<string | null>(null)
+  const [importNotice, setImportNotice] = useState<string | null>(null)
+
+  const importFromJson = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    setImportError(null)
+    setImportNotice(null)
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      if (!Array.isArray(data)) {
+        setImportError('JSON must be an array of place objects.')
+        return
+      }
+
+      const areaIds = new Set(areas.map((a) => a.id))
+      const categoryIds = new Set(categories.map((c) => c.id))
+      const existingDestIds = new Set(destinations.map((d) => d.id))
+      const now = new Date().toISOString()
+      let imported = 0
+      let skipped = 0
+
+      for (const item of data) {
+        try {
+          // Validate required fields
+          if (!item.id || !item.title || !item.area_id || !item.category_id) {
+            console.warn('Skipping item missing required fields:', item)
+            skipped++
+            continue
+          }
+
+          if (!areaIds.has(item.area_id)) {
+            console.warn(`Skipping item ${item.id}: unknown area_id ${item.area_id}`)
+            skipped++
+            continue
+          }
+
+          if (!categoryIds.has(item.category_id)) {
+            console.warn(`Skipping item ${item.id}: unknown category_id ${item.category_id}`)
+            skipped++
+            continue
+          }
+
+          // Check for duplicate ID
+          let destId = item.id
+          if (existingDestIds.has(destId)) {
+            destId = createId()
+          }
+
+          // Build translations object
+          const translations: Record<Language, ContentTranslation> = {
+            en: emptyTranslation(),
+            de: emptyTranslation(),
+            ru: emptyTranslation(),
+            ja: emptyTranslation(),
+          }
+
+          const langs: Language[] = ['en', 'de', 'ru', 'ja']
+          for (const lang of langs) {
+            const t = item.title?.[lang] || item.title?.en || ''
+            const sd = item.short_description?.[lang] || item.short_description?.en || ''
+            const desc = item.description?.[lang] || item.description?.en || ''
+            const hb = item.historical_value?.[lang] || item.historical_value?.en || ''
+
+            translations[lang] = {
+              ...emptyTranslation(),
+              name: t,
+              shortDescription: sd,
+              description: desc,
+              historicalBackground: hb,
+            }
+          }
+
+          // Build facts from stats
+          const facts: ContentTranslation['facts'] = []
+          if (Array.isArray(item.stats)) {
+            for (const stat of item.stats) {
+              const label = stat.label?.en || ''
+              const value = stat.value?.en || ''
+              if (label && value) {
+                facts.push({
+                  id: `${stat.label?.en || 'fact'}-${facts.length}`,
+                  label,
+                  value,
+                })
+              }
+            }
+          }
+
+          // Set facts for all languages
+          for (const lang of langs) {
+            translations[lang].facts = facts
+          }
+
+          // Build highlights from gallery or description
+          const highlights: string[] = []
+          if (Array.isArray(item.gallery) && item.gallery.length > 0) {
+            highlights.push(`Photo gallery with ${item.gallery.length} images`)
+          }
+          if (item.featured_image) {
+            highlights.push('Featured image available')
+          }
+
+          for (const lang of langs) {
+            translations[lang].highlights = highlights
+          }
+
+          const newDest: Destination = {
+            id: destId,
+            slug: item.id,
+            areaId: item.area_id,
+            categoryIds: [item.category_id],
+            translations,
+            galleryMediaIds: [],
+            videoMediaIds: [],
+            audioMediaIds: [],
+            nearbyDestinationIds: [],
+            keywords: [],
+            alternateNames: [],
+            visitDuration: '',
+            published: true,
+            featured: false,
+            sortOrder: 100,
+            sources: item.sources || 'JSON import',
+            lastVerifiedAt: now,
+            createdAt: now,
+            updatedAt: now,
+          }
+
+          await getDatabase().destinations.put(newDest)
+          existingDestIds.add(destId)
+          imported++
+        } catch (itemError) {
+          console.error('Error importing item:', itemError)
+          skipped++
+        }
+      }
+
+      setImportNotice(`${t('imported')}: ${imported}, ${t('skipped')}: ${skipped}`)
+    } catch (cause) {
+      setImportError(`${t('importError')}: ${errorText(cause)}`)
+    }
+  }
 
   const visible = useMemo(() => destinations
     .filter((item) => {
@@ -95,20 +257,44 @@ export function DestinationManagerPage() {
     return () => window.removeEventListener('beforeunload', preventClose)
   }, [dirty])
 
-  const openForm = (destination?: Destination) => {
+  const openForm = (destination?: Destination, isQuickAdd = false) => {
     if (dirty && !window.confirm(t('discardChanges'))) return
+    if (isQuickAdd) {
+      setQuickForm({
+        name: '',
+        areaId: '',
+        categoryIds: [],
+        shortDescription: '',
+        description: '',
+        historicalBackground: '',
+        imageFile: null,
+      })
+      setQuickAdd(true)
+      setForm(null)
+      setDirty(false)
+      setError(null)
+      setNotice(null)
+      setPreview(false)
+      return
+    }
     setForm(destination ? structuredClone(destination) : newDestination())
     setFormLanguage(language)
     setDirty(false)
     setError(null)
     setNotice(null)
     setPreview(false)
+    setQuickAdd(false)
   }
 
   const closeForm = () => {
     if (dirty && !window.confirm(t('discardChanges'))) return
+    if (quickAdd && quickForm) {
+      if (!window.confirm(t('discardChanges'))) return
+    }
     setForm(null)
+    setQuickForm(null)
     setDirty(false)
+    setQuickAdd(false)
   }
 
   const patch = <K extends keyof Destination>(key: K, value: Destination[K]) => {
@@ -131,7 +317,7 @@ export function DestinationManagerPage() {
       setError('Choose an area before saving.')
       return
     }
-    if (publish) {
+    if (publish && !quickAdd) {
       const incomplete = LANGUAGES.filter((code) => {
         const translation = form.translations[code]
         return !translation.name.trim() || !translation.shortDescription.trim() ||
@@ -143,6 +329,14 @@ export function DestinationManagerPage() {
       }
       if (!form.sources.trim() || !form.lastVerifiedAt) {
         setError('Add a source and verification date before publishing.')
+        return
+      }
+    }
+    if (publish && quickAdd) {
+      // Quick publish: only require English content
+      const en = form.translations.en
+      if (!en.name.trim() || !en.shortDescription.trim() || !en.description.trim() || !en.historicalBackground.trim()) {
+        setError('Complete name, short description, description and historical background in English for quick publish.')
         return
       }
     }
@@ -192,6 +386,129 @@ export function DestinationManagerPage() {
     }
   }
 
+  const patchQuickForm = <K extends keyof QuickFormState>(key: K, value: QuickFormState[K]) => {
+    setQuickForm((current) => current ? { ...current, [key]: value } : current)
+  }
+
+  const saveQuickForm = async (event: FormEvent<HTMLFormElement> | undefined, publish: boolean) => {
+    event?.preventDefault()
+    if (!quickForm) return
+    setError(null)
+    if (!quickForm.name.trim()) {
+      setError('Enter a name for the place.')
+      return
+    }
+    if (!quickForm.areaId) {
+      setError('Choose an area before saving.')
+      return
+    }
+    if (!quickForm.shortDescription.trim() || !quickForm.description.trim() || !quickForm.historicalBackground.trim()) {
+      setError('Complete short description, description and historical background.')
+      return
+    }
+
+    // Handle image upload if provided
+    let galleryMediaIds: string[] = []
+    if (quickForm.imageFile) {
+      const mediaType = quickForm.imageFile.type.startsWith('image/') ? 'image' : 'video'
+      const maxMb = mediaType === 'video' ? 150 : 35
+      if (quickForm.imageFile.size > maxMb * 1024 * 1024) {
+        setError(`Image too large. Maximum: ${maxMb} MB.`)
+        return
+      }
+      let thumbnailBlob: Blob | null = null
+      if (mediaType === 'image') {
+        const objectUrl = URL.createObjectURL(quickForm.imageFile)
+        try {
+          const image = new Image()
+          image.src = objectUrl
+          await new Promise<void>((resolve, reject) => {
+            image.onload = () => resolve()
+            image.onerror = () => reject(new Error('Could not decode image.'))
+          })
+          const scale = Math.min(1, 640 / Math.max(image.naturalWidth, image.naturalHeight))
+          const canvas = document.createElement('canvas')
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+          const context = canvas.getContext('2d')
+          if (!context) throw new Error('Canvas unavailable.')
+          context.drawImage(image, 0, 0, canvas.width, canvas.height)
+          thumbnailBlob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+        } finally {
+          URL.revokeObjectURL(objectUrl)
+        }
+      }
+      const mediaId = createId()
+      const now = new Date().toISOString()
+      await getDatabase().media.add({
+        id: mediaId,
+        fileName: quickForm.imageFile.name,
+        mimeType: quickForm.imageFile.type,
+        fileSize: quickForm.imageFile.size,
+        blob: quickForm.imageFile.slice(0, quickForm.imageFile.size, quickForm.imageFile.type),
+        thumbnailBlob,
+        mediaType: mediaType as 'image' | 'video',
+        language: null,
+        destinationId: null,
+        createdAt: now,
+      })
+      galleryMediaIds = [mediaId]
+    }
+
+    const now = new Date().toISOString()
+    const newDest: Destination = {
+      id: createId(),
+      slug: quickForm.name.trim().toLocaleLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''),
+      areaId: quickForm.areaId,
+      categoryIds: quickForm.categoryIds,
+      translations: {
+        en: {
+          name: quickForm.name,
+          shortDescription: quickForm.shortDescription,
+          description: quickForm.description,
+          historicalBackground: quickForm.historicalBackground,
+          facts: [],
+          highlights: [],
+          dressCode: '',
+          etiquette: '',
+          photography: '',
+          accessibility: '',
+          bestTime: '',
+          videoDescription: '',
+        },
+        de: emptyTranslation(),
+        ru: emptyTranslation(),
+        ja: emptyTranslation(),
+      },
+      galleryMediaIds,
+      videoMediaIds: [],
+      audioMediaIds: [],
+      nearbyDestinationIds: [],
+      keywords: [],
+      alternateNames: [],
+      visitDuration: '',
+      published: publish,
+      featured: false,
+      sortOrder: 100,
+      sources: '',
+      lastVerifiedAt: publish ? now : null,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    try {
+      await getDatabase().destinations.put(newDest)
+      if (publish) {
+        await getDatabase().destinations.update(newDest.id, { lastVerifiedAt: now })
+      }
+      setQuickForm(null)
+      setQuickAdd(false)
+      setNotice(publish ? t('publish') : t('saveDraft'))
+    } catch (cause) {
+      setError(errorText(cause))
+    }
+  }
+
   const titleOf = (item: Destination) => item.translations[language].name || item.translations.en.name || t('missingTranslation')
   const translateStatus = (item: Destination, code: Language) => {
     const value = item.translations[code]
@@ -206,10 +523,19 @@ export function DestinationManagerPage() {
     <main className={styles.content}>
       <section className={styles.sectionHeading}>
         <h1 className={styles.pageTitle}>{t('destinations')}</h1>
-        <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={() => openForm()}>{t('add')}</button>
+        <div className={styles.buttonRow}>
+          <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={() => openForm()}>{t('add')}</button>
+          <button className={styles.button} type="button" onClick={() => openForm(undefined, true)}>{t('quickAdd')}</button>
+          <label className={styles.button}>
+            {t('importJson')}
+            <input type="file" accept=".json" onChange={(event) => void importFromJson(event)} style={{ display: 'none' }} />
+          </label>
+        </div>
       </section>
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
       {notice ? <p className={styles.notice} role="status">{notice}</p> : null}
+      {importError ? <p className={styles.error} role="alert">{importError}</p> : null}
+      {importNotice ? <p className={styles.notice} role="status">{importNotice}</p> : null}
       <label className={styles.field}>
         {t('search')}
         <input className={styles.input} value={filter} onChange={(event) => setFilter(event.target.value)} />
@@ -239,10 +565,11 @@ export function DestinationManagerPage() {
         <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-label={t('destinations')}>
           <div className={`${styles.modal} ${styles.form}`}>
             <div className={styles.sectionHeading}>
-              <h2>{form.createdAt === form.updatedAt ? t('add') : t('edit')} {t('destinations')}</h2>
+              <h2>{form.createdAt === form.updatedAt ? (quickAdd ? t('quickAdd') : t('add')) : t('edit')} {t('destinations')}</h2>
+              {quickAdd && <span className={styles.tag}>Quick mode: English only</span>}
               <button className={styles.button} type="button" onClick={closeForm}>{t('cancel')}</button>
             </div>
-            <p className={styles.notice}>{t('unverified')}</p>
+            <p className={styles.notice}>{quickAdd ? t('quickAddNotice') : t('unverified')}</p>
             <div className={styles.buttonRow}>
               {LANGUAGES.map((code) => (
                 <button className={`${styles.button} ${formLanguage === code ? styles.buttonPrimary : ''}`} key={code} type="button" onClick={() => setFormLanguage(code)}>
@@ -331,6 +658,66 @@ export function DestinationManagerPage() {
                 <button className={styles.button} type="submit">{t('saveDraft')}</button>
                 <button className={styles.button} type="button" onClick={() => setPreview((current) => !current)}>{t('preview')}</button>
                 <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={() => void save(undefined, true)}>{t('publish')}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {quickAdd && quickForm ? (
+        <div className={styles.modalBackdrop} role="dialog" aria-modal="true" aria-label={t('destinations')}>
+          <div className={`${styles.modal} ${styles.form}`}>
+            <div className={styles.sectionHeading}>
+              <h2>{t('quickAdd')} {t('destinations')}</h2>
+              <button className={styles.button} type="button" onClick={closeForm}>{t('cancel')}</button>
+            </div>
+            <p className={styles.notice}>{t('quickAddNotice')}</p>
+            <form className={styles.form} onSubmit={(event) => void saveQuickForm(event, false)}>
+              <section className={styles.panel}>
+                <h3>{t('title')} · EN</h3>
+                <label className={styles.field}>{t('title')}<input className={styles.input} value={quickForm.name} onChange={(event) => patchQuickForm('name', event.target.value)} required /></label>
+                <label className={styles.field}>{t('discover')}<input className={styles.input} value={quickForm.shortDescription} onChange={(event) => patchQuickForm('shortDescription', event.target.value)} required /></label>
+                <label className={styles.field}>{t('history')}<textarea className={styles.textarea} value={quickForm.historicalBackground} onChange={(event) => patchQuickForm('historicalBackground', event.target.value)} required /></label>
+                <label className={styles.field}>{t('description')}<textarea className={styles.textarea} value={quickForm.description} onChange={(event) => patchQuickForm('description', event.target.value)} required /></label>
+              </section>
+              <section className={styles.panel}>
+                <h3>{t('area')} & {t('categoriesLabel')}</h3>
+                <label className={styles.field}>{t('area')}
+                  <select className={styles.select} value={quickForm.areaId} onChange={(event) => patchQuickForm('areaId', event.target.value)} required>
+                    <option value="">—</option>
+                    {areas.map((area) => <option key={area.id} value={area.id}>{area.translations.en || area.id}</option>)}
+                  </select>
+                </label>
+                <div className={styles.stack}>
+                  {categories.map((category) => (
+                    <label className={styles.checkRow} key={category.id}>
+                      <input
+                        type="checkbox"
+                        checked={quickForm.categoryIds.includes(category.id)}
+                        onChange={(event) => patchQuickForm('categoryIds', event.target.checked
+                          ? [...quickForm.categoryIds, category.id]
+                          : quickForm.categoryIds.filter((id) => id !== category.id))}
+                      />
+                      <span>{category.translations.en || category.id}</span>
+                    </label>
+                  ))}
+                </div>
+              </section>
+              <section className={styles.panel}>
+                <h3>Cover Image</h3>
+                <label className={styles.field}>{t('importMedia')}
+                  <input className={styles.input} type="file" accept="image/*" capture="environment" onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) patchQuickForm('imageFile', file)
+                  }} />
+                  <p className={styles.muted}>{t('cameraCaptureHint')}</p>
+                </label>
+                {quickForm.imageFile && <p className={styles.muted}>Selected: {quickForm.imageFile.name}</p>}
+              </section>
+              {error ? <p className={styles.error} role="alert">{error}</p> : null}
+              <div className={styles.buttonRow}>
+                <button className={styles.button} type="submit">{t('saveDraft')}</button>
+                <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={() => void saveQuickForm(undefined, true)}>{t('publish')}</button>
               </div>
             </form>
           </div>

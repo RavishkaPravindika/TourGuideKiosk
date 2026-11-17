@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import * as XLSX from 'xlsx'
 import { getDatabase } from '@/database/db'
 import { LANGUAGES, type Language } from '@/database/schema'
 import { useAppData } from '@/contexts/AppDataContext'
@@ -8,6 +9,13 @@ import styles from '@/styles/application.module.scss'
 
 function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
+}
+
+function toSriLankaTime(isoString: string): string {
+  const date = new Date(isoString)
+  // Sri Lanka is UTC+5:30
+  const slTime = new Date(date.getTime() + (5.5 * 60 * 60 * 1000))
+  return slTime.toISOString().replace('T', ' ').replace('Z', '')
 }
 
 export function GuestContactsPage() {
@@ -32,10 +40,10 @@ export function GuestContactsPage() {
 
   const exportCsv = () => {
     setError(null)
-    const header = ['name', 'countryCode', 'phoneNumber', 'normalizedPhoneNumber', 'language', 'consent', 'consentDate', 'guestSessionId', 'createdAt']
+    const header = ['name', 'countryCode', 'phoneNumber', 'normalizedPhoneNumber', 'language', 'guestSessionId', 'createdAt (UTC+5:30)']
     const rows = guests.map((guest) => [
       guest.name, guest.countryCode, guest.phoneNumber, guest.normalizedPhoneNumber,
-      guest.selectedLanguage, String(guest.consent), guest.consentDate, guest.guestSessionId, guest.createdAt,
+      guest.selectedLanguage, guest.guestSessionId, toSriLankaTime(guest.createdAt),
     ])
     const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
@@ -45,6 +53,31 @@ export function GuestContactsPage() {
     anchor.click()
     window.setTimeout(() => URL.revokeObjectURL(url), 1000)
     setNotice(t('downloadRequested'))
+  }
+
+  const exportExcel = () => {
+    setError(null)
+    try {
+      const header = ['Name', 'Country Code', 'Phone Number', 'Normalized Phone', 'Language', 'Session ID', 'Created At (UTC+5:30)']
+      const rows = guests.map((guest) => [
+        guest.name, guest.countryCode, guest.phoneNumber, guest.normalizedPhoneNumber,
+        guest.selectedLanguage.toUpperCase(), guest.guestSessionId, toSriLankaTime(guest.createdAt),
+      ])
+      const worksheet = XLSX.utils.aoa_to_sheet([header, ...rows])
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Guest Contacts')
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `explore-sri-lanka-contacts-${new Date().toISOString().slice(0, 10)}.xlsx`
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      setNotice(t('downloadRequested'))
+    } catch (cause) {
+      setError(errorText(cause))
+    }
   }
 
   const remove = async (id: string) => {
@@ -71,7 +104,10 @@ export function GuestContactsPage() {
     <main className={styles.content}>
       <section className={styles.sectionHeading}>
         <h1 className={styles.pageTitle}>{t('guests')}</h1>
-        <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={exportCsv}>{t('exportCsv')}</button>
+        <div className={styles.buttonRow}>
+          <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={exportCsv}>{t('exportCsv')}</button>
+          <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={exportExcel}>{t('exportExcel')}</button>
+        </div>
       </section>
       <p className={styles.notice}>Guest contact details are private. Export only when necessary and protect the downloaded file.</p>
       {error ? <p className={styles.error} role="alert">{error}</p> : null}
@@ -91,15 +127,14 @@ export function GuestContactsPage() {
       </div>
       <div className={`${styles.panel} ${styles.tableWrap}`}>
         <table className={styles.table}>
-          <thead><tr><th>{t('name')}</th><th>{t('phone')}</th><th>{t('language')}</th><th>{t('consentGiven')}</th><th>{t('consentDate')}</th><th /></tr></thead>
+          <thead><tr><th>{t('name')}</th><th>{t('phone')}</th><th>{t('language')}</th><th>{t('createdAt')}</th><th /></tr></thead>
           <tbody>
             {visible.map((guest) => (
               <tr key={guest.id}>
                 <td>{guest.name || '—'}</td>
                 <td>{guest.normalizedPhoneNumber}</td>
                 <td>{guest.selectedLanguage.toUpperCase()}</td>
-                <td>{guest.consent ? t('consentGiven') : '—'}</td>
-                <td>{new Date(guest.consentDate).toLocaleString()}</td>
+                <td>{toSriLankaTime(guest.createdAt)}</td>
                 <td><div className={styles.buttonRow}>
                   <button className={styles.button} type="button" onClick={() => void copy(guest.normalizedPhoneNumber)}>{t('copyNumber')}</button>
                   <a className={styles.button} href={`https://wa.me/${guest.normalizedPhoneNumber.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">{t('openChat')}</a>

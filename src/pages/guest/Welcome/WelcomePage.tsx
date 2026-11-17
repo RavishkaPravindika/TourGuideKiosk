@@ -16,16 +16,20 @@ export function WelcomePage() {
   const { beginSession, error: dataError, settings } = useAppData()
   const { report, running, runError } = useDiagnostics()
   const [actionError, setActionError] = useState<string | null>(null)
+  const [startingLanguage, setStartingLanguage] = useState<Language | null>(null)
   const showDatabaseWarning = Boolean(dataError || runError) || Boolean(report && !report.databaseReady)
 
   const start = async (language: Language) => {
     setActionError(null)
+    setStartingLanguage(language)
     try {
       await beginSession(language)
       navigate('/discover')
     } catch (error) {
       console.error('Could not start guest session', error)
       setActionError(translate(language, 'sessionStartError'))
+    } finally {
+      setStartingLanguage(null)
     }
   }
 
@@ -48,13 +52,21 @@ export function WelcomePage() {
                 key={language}
                 type="button"
                 onClick={() => void start(language)}
+                disabled={startingLanguage !== null}
+                aria-busy={startingLanguage === language}
               >
-                {languageNames[language]}
+                {startingLanguage === language ? <span className={styles.spinner} aria-hidden="true" /> : languageNames[language]}
               </button>
             ))}
           </div>
           {actionError ? <p className={styles.error} role="alert">{actionError}</p> : null}
-          {running ? <p className={styles.muted} role="status">Checking local storage on this tablet…</p> : null}
+          {startingLanguage ? (
+            <p className={styles.muted} role="status">
+              {translate(startingLanguage, 'loadingData')}
+            </p>
+          ) : running ? (
+            <p className={styles.muted} role="status">Checking local storage on this tablet…</p>
+          ) : null}
         </div>
         <div className={styles.heroArt}><HeritageScene /></div>
       </section>

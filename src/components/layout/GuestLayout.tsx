@@ -78,7 +78,6 @@ export function GuestLayout() {
             <p className={styles.eyebrow}>{t('contact')}</p>
             <h2 id="contact-invitation-title">{t('contactTitle')}</h2>
             <p>{t('contactIntro')}</p>
-            <p className={styles.muted}>{t('contactPrivacy')}</p>
             <div className={styles.buttonRow}>
               <button className={`${styles.button} ${styles.buttonPrimary}`} type="button" onClick={() => {
                 setShowInvitation(false)

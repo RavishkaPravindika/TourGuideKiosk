@@ -56,6 +56,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const sessionInitialized = useRef(false)
+  const pendingSessionId = useRef<string | null>(null)
+  const [immediateSession, setImmediateSession] = useState<GuestSession | null>(null)
 
   useEffect(() => {
     let active = true
@@ -114,6 +116,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       return
     }
     if (sessionId && !snapshot.sessions.some((session) => session.id === sessionId && !session.endedAt)) {
+      if (pendingSessionId.current === sessionId) {
+        // The snapshot has not yet caught up to the session we just wrote.
+        return
+      }
       setSessionId(null)
     }
   }, [sessionId, snapshot?.sessions])
@@ -127,24 +133,42 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const database = getDatabase()
     const now = new Date().toISOString()
     const id = createId()
-    await database.transaction('rw', [database.guestSessions, database.journeys], async () => {
-      const activeSessions = await database.guestSessions.filter((session) => !session.endedAt).toArray()
-      await Promise.all(activeSessions.map((session) => database.guestSessions.update(session.id, {
-        endedAt: now,
-        wishlistIds: [],
-      })))
-      const defaultJourney = await database.journeys.filter((journey) => journey.active).sortBy('sortOrder')
-      await database.guestSessions.add({
+    pendingSessionId.current = id
+    let journeyId: string | null = null
+    try {
+      await database.transaction('rw', [database.guestSessions, database.journeys], async () => {
+        const activeSessions = await database.guestSessions.filter((session) => !session.endedAt).toArray()
+        await Promise.all(activeSessions.map((session) => database.guestSessions.update(session.id, {
+          endedAt: now,
+          wishlistIds: [],
+        })))
+        const defaultJourney = await database.journeys.filter((journey) => journey.active).sortBy('sortOrder')
+        journeyId = defaultJourney.find((j) => j.featured)?.id ?? defaultJourney[0]?.id ?? null
+        await database.guestSessions.add({
+          id,
+          language,
+          startedAt: now,
+          endedAt: null,
+          journeyId,
+          wishlistIds: [],
+          invitationEligible: false,
+          invitationShown: false,
+        })
+      })
+      // Immediately provide session for instant language switch
+      setImmediateSession({
         id,
         language,
         startedAt: now,
         endedAt: null,
-        journeyId: defaultJourney.find((journey) => journey.featured)?.id ?? defaultJourney[0]?.id ?? null,
+        journeyId,
         wishlistIds: [],
         invitationEligible: false,
         invitationShown: false,
       })
-    })
+    } finally {
+      pendingSessionId.current = null
+    }
     setSessionId(id)
   }, [])
 
@@ -178,6 +202,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       invitationShown: false,
     })
     setSessionId(null)
+    setImmediateSession(null)
   }, [sessionId])
 
   const markInvitationShown = useCallback(async () => {
@@ -193,8 +218,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const getMedia = useCallback(async (id: string) => getDatabase().media.get(id), [])
 
   const session = useMemo(
-    () => snapshot?.sessions.find((item) => item.id === sessionId) ?? null,
-    [sessionId, snapshot?.sessions],
+    () => snapshot?.sessions.find((item) => item.id === sessionId) ?? immediateSession ?? null,
+    [sessionId, snapshot?.sessions, immediateSession],
   )
 
   const value: AppDataValue = {

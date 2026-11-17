@@ -7,6 +7,7 @@ import { useAppData } from '@/contexts/AppDataContext'
 import { languageNames } from '@/data/uiTranslations'
 import { useLanguage } from '@/hooks/useLanguage'
 import { errorText } from '@/utils/runtime'
+import { seedDatabase } from '@/database/seed'
 import styles from '@/styles/application.module.scss'
 
 export function AdminSettingsPage() {
@@ -70,6 +71,42 @@ export function AdminSettingsPage() {
     }
   }
 
+  const resetToDefaults = async () => {
+    if (!window.confirm('This will delete ALL places, media, journeys, areas, categories and settings. Only guest contacts and admin PIN will be kept. Continue?')) return
+    if (!window.confirm('Are you sure? This cannot be undone.')) return
+    setError(null)
+    setNotice(null)
+    try {
+      const database = getDatabase()
+      await database.transaction(
+        'rw',
+        [
+          database.areas,
+          database.categories,
+          database.destinations,
+          database.journeys,
+          database.media,
+          database.settings,
+        ],
+        async () => {
+          await Promise.all([
+            database.areas.clear(),
+            database.categories.clear(),
+            database.destinations.clear(),
+            database.journeys.clear(),
+            database.media.clear(),
+            database.settings.clear(),
+          ])
+          await seedDatabase()
+        }
+      )
+      setNotice('Default places, areas, categories, and journeys restored.')
+      window.location.reload()
+    } catch (cause) {
+      setError(errorText(cause))
+    }
+  }
+
   return (
     <main className={styles.content}>
       <section className={styles.section}>
@@ -100,6 +137,12 @@ export function AdminSettingsPage() {
         <h2>{t('endSession')}</h2>
         <p className={styles.muted}>{t('sessionResetDescription')}</p>
         <button className={`${styles.button} ${styles.buttonDanger}`} disabled={!session} type="button" onClick={() => void finishSession()}>{t('endSession')}</button>
+      </section>
+
+      <section className={`${styles.section} ${styles.panel} ${styles.stack}`}>
+        <h2>Reset to Default Places</h2>
+        <p className={styles.muted}>Restores the 4 default places (Kande Vihara, Galle Fort, Weligama Beach, Ambalangoda Masks), areas, categories, and the featured journey. Your admin PIN and guest contacts are preserved.</p>
+        <button className={`${styles.button} ${styles.buttonDanger}`} type="button" onClick={() => void resetToDefaults()}>Reset to Defaults</button>
       </section>
     </main>
   )

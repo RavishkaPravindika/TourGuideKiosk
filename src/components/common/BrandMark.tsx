@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import explorerIcon from '/Adventurous-Boy_RemoveBackground.png'
 import styles from './BrandMark.module.scss'
 
 const LONG_PRESS_MS = 700
@@ -50,14 +51,7 @@ export function BrandMark({ onAdminGesture, appName = 'Explore Sri Lanka' }: Bra
         }
       }}
     >
-      <svg viewBox="0 0 64 64" aria-hidden="true">
-        <rect width="64" height="64" rx="16" fill="currentColor" />
-        <path
-          d="M32 12c2 8 2 12 0 18-6 2-12 8-12 16 0 4 3 8 12 8s12-4 12-8c0-8-6-14-12-16 2-6 2-10 0-18z"
-          fill="#F7F5EC"
-        />
-        <circle cx="32" cy="30" r="3" fill="#C5A15D" />
-      </svg>
+      <img src={explorerIcon} alt="" width="36" height="36" style={{ display: 'block' }} />
       <span>{appName}</span>
     </button>
   )

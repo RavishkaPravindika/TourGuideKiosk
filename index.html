@@ -4,12 +4,29 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
     />
     <meta name="color-scheme" content="light" />
     <meta name="theme-color" content="#174A35" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Explore Sri Lanka" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Explore Sri Lanka" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./Adventurous-Boy_RemoveBackground.png" type="image/png" />
+    <link rel="apple-touch-icon" href="./Adventurous-Boy_RemoveBackground.png" />
     <title>Explore Sri Lanka</title>
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+    <style>
+      /* Prevent flash of unstyled content */
+      html { visibility: hidden; }
+    </style>
+    <script>
+      // Show page after CSS loads
+      document.addEventListener('DOMContentLoaded', () => {
+        document.documentElement.style.visibility = 'visible';
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
