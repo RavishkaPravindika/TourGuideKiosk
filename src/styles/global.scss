@@ -1,0 +1,70 @@
+@use 'variables' as *;
+@use 'reset';
+
+:root {
+  --color-primary: #{$color-primary};
+  --color-secondary: #{$color-secondary};
+  --color-fresh: #{$color-fresh};
+  --color-cream: #{$color-cream};
+  --color-surface: #{$color-surface};
+  --color-text: #{$color-text};
+  --color-gold: #{$color-gold};
+  --color-muted: #5d6b63;
+  --color-line: rgba(23, 74, 53, 0.12);
+  --color-danger: #8c3a32;
+  --color-danger-bg: #f8ece8;
+  --color-warning: #8a6232;
+  --color-warning-bg: #f8f1e4;
+  --color-ok: #246b4a;
+  --color-ok-bg: #e7f0ea;
+  --shadow-card: 0 12px 40px rgba(23, 74, 53, 0.08);
+  --radius-lg: 28px;
+  --font-sans: #{$font-sans};
+  --font-serif: #{$font-serif};
+  --page-max: #{$page-max};
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --color-cream: #14241c;
+  --color-surface: #1c3127;
+  --color-text: #f3f1e7;
+  --color-muted: #c5cec8;
+  --color-line: rgba(247, 245, 236, 0.14);
+  --color-danger: #f0b2a8;
+  --color-danger-bg: #3a2422;
+  --color-warning: #f0d7a8;
+  --color-warning-bg: #3a3124;
+  --color-ok: #b7d7c4;
+  --color-ok-bg: #1a3a2c;
+  --shadow-card: 0 12px 40px rgba(0, 0, 0, 0.28);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}

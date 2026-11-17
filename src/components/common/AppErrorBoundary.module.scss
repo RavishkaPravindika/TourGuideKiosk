@@ -1,0 +1,23 @@
+.fallback {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  gap: 0.8rem;
+  padding: 2rem;
+  max-width: 40rem;
+
+  h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 500;
+    line-height: 1.15;
+  }
+}
+
+.eyebrow {
+  color: var(--color-secondary);
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}

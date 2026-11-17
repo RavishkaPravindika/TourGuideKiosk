@@ -1,0 +1,32 @@
+@use '../../../styles/mixins' as *;
+
+.page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  align-content: center;
+  gap: 0.9rem;
+  padding: clamp(1.25rem, 3vw, 3rem);
+
+  h1 {
+    max-width: 16ch;
+    font-family: var(--font-serif);
+    font-size: clamp(2.2rem, 5vw, 3.6rem);
+    font-weight: 500;
+    line-height: 1.1;
+    color: var(--color-primary);
+  }
+}
+
+.eyebrow {
+  color: var(--color-secondary);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.link {
+  @include button-base;
+  width: fit-content;
+  background: var(--color-primary);
+  color: var(--color-cream);
+}
